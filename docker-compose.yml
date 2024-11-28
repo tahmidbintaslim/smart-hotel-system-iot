@@ -1,0 +1,95 @@
+services:
+  # IoT Device Simulation Service
+  iot-simulation:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - kafka
+
+  # Data Fetcher Agent
+  data-fetcher:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.backend
+    environment:
+      - API_URL=http://iot-simulation:8000
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - iot-simulation
+      - kafka
+
+  # Data Logger Agent
+  data-logger:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.backend
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/iotdb
+    depends_on:
+      - postgres
+      - kafka
+
+  # Occupancy Detector Agent
+  occupancy-detector:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.backend
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - IOT_API_URL=http://iot-simulation:8000
+    depends_on:
+      - iot-simulation
+      - kafka
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: iotdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Apache Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # Frontend Chatbot Service
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.frontend
+    ports:
+      - "7860:7860"
+    environment:
+      - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_ASSISTANT_ID=${AZURE_ASSISTANT_ID}
+      - BACKEND_API_URL=${BACKEND_API_URL}
+
+volumes:
+  postgres-data:
