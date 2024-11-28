@@ -1,66 +1,84 @@
-from openai import AzureOpenAI
 import os
 import logging
 import asyncio
 import aiohttp
 import gradio as gr
+from openai import AzureOpenAI
 
 class HotelAssistant:
     def __init__(self):
         # Configure logging
-        logging.basicConfig(level=logging.INFO, 
-                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        self.logger = logging.getLogger('HotelAssistant')
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        self.logger = logging.getLogger("HotelAssistant")
 
         # Initialize Azure OpenAI Client
         try:
             self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
             self.api_key = os.getenv("AZURE_OPENAI_KEY")
-            self.assistant_id = os.getenv("AZURE_ASSISTANT_ID", "asst_7y4J1Znzk3Agv6zvFTCEhj1Q")
+            self.assistant_id = os.getenv("AZURE_ASSISTANT_ID")
             self.client = AzureOpenAI(
                 azure_endpoint=self.azure_endpoint,
                 api_key=self.api_key,
-                api_version="2024-05-01-preview"
+                api_version="2024-05-01-preview",
             )
             self.logger.info("Successfully connected to Azure OpenAI.")
         except Exception as e:
             self.logger.error(f"Failed to connect to Azure OpenAI: {e}")
-        
+
         # Backend API URL
         self.backend_url = os.getenv("BACKEND_API_URL", "http://localhost:8000")
 
     async def get_room_data(self, room_id: str):
         """Fetch room data from backend API"""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.backend_url}/rooms/{room_id}/data") as response:
-                return await response.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.backend_url}/rooms/{room_id}/data") as response:
+                    data = await response.json()
+                    self.logger.info(f"Fetched room data: {data}")
+                    return data
+        except Exception as e:
+            self.logger.error(f"Error fetching room data: {e}")
+            return {"error": "Unable to fetch room data"}
 
     async def send_room_control(self, room_id: str, command: dict):
         """Send control command to room"""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.backend_url}/rooms/{room_id}/control", json=command) as response:
-                return await response.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.backend_url}/rooms/{room_id}/control", json=command
+                ) as response:
+                    result = await response.json()
+                    self.logger.info(f"Sent room control command: {result}")
+                    return result
+        except Exception as e:
+            self.logger.error(f"Error sending room control: {e}")
+            return {"error": "Unable to send control command"}
 
     def generate_llm_response(self, user_input: str, room_data: dict):
         """Generate intelligent response using Azure OpenAI"""
         try:
-            # Create a thread for conversation
+            # Create a conversation thread
             thread = self.client.beta.threads.create()
+            self.logger.info(f"Created thread: {thread.id}")
 
-            # Add user input to the thread
+            # Add user message to the thread
             self.client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
                 content=f"Room data: {room_data}\nUser request: {user_input}"
             )
 
-            # Run the assistant
+            # Run the conversation
             run = self.client.beta.threads.runs.create(
                 thread_id=thread.id,
                 assistant_id=self.assistant_id
             )
+            self.logger.info(f"Started run: {run.id}")
 
-            # Wait for the completion
+            # Wait for completion
             while run.status in ["queued", "in_progress", "cancelling"]:
                 asyncio.sleep(1)
                 run = self.client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
@@ -84,7 +102,7 @@ class HotelAssistant:
         try:
             # Assume room ID is first part of message
             parts = message.split(maxsplit=2)
-            room_id = parts[0] if len(parts) > 1 else 'room101'
+            room_id = parts[0] if len(parts) > 1 else "room101"
             user_request = parts[-1]
 
             # Fetch room data
@@ -105,7 +123,7 @@ class HotelAssistant:
         iface = gr.ChatInterface(
             self.chat_interface,
             title="Hotel Room Assistant",
-            description="Chat with your smart hotel room"
+            description="Chat with your smart hotel room",
         )
         iface.launch(server_name="0.0.0.0", server_port=7860)
 
