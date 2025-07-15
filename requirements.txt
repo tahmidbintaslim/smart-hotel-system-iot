@@ -12,7 +12,7 @@ alembic==1.13.1
 confluent-kafka==2.3.0
 
 # HTTP Clients
-aiohttp==3.10.11
+aiohttp==3.12.14
 
 # Frontend
 gradio==5.5.0
