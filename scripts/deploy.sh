@@ -8,10 +8,10 @@ set -e
 # Constants
 DOCKER_COMPOSE_FILE="docker-compose.yml"
 
-# Set Azure OpenAI and Backend environment variables
-export AZURE_OPENAI_KEY="4jcVWz6srd4Y7INprd7cpXGvodoPprnYd3cO3vC920sRWrXSCbvKJQQJ99AKACYeBjFXJ3w3AABACOGBqv1"
-export AZURE_OPENAI_ENDPOINT="https://gpt-candidate-test.openai.azure.com"
-export AZURE_ASSISTANT_ID="asst_7y4J1Znzk3Agv6zvFTCEhj1Q"
+# Azure OpenAI settings for the chat page come from the shell; export them before running
+export AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY:-}"
+export AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
+export AZURE_ASSISTANT_ID="${AZURE_ASSISTANT_ID:-}"
 export BACKEND_API_URL="http://iot-simulation:8000" # Updated to match service name in docker-compose
 
 # Function to check Docker and Docker Compose installations
