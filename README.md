@@ -21,7 +21,7 @@ the Docker images do not build with the current `requirements.txt`. See
 | `backend/agents/occupancy_detector.py` | Kafka consumer for `life-being`. A room counts as occupied when presence is true, sensitivity is above 0.5 and the sensor is online. When a room becomes empty it publishes an AC set point of 26.5 °C to the `room-control` topic and posts the same command to the API. |
 | `frontend/chatbot.py` | Gradio chat page on port 7860. The first word of a message is the room ID. It fetches that room's data from the API and sends it with the question to an Azure OpenAI assistant (Assistants API). |
 | `backend/devices/simulation.py`, `backend/api/routes.py`, `backend/kafka/producer.py`, `backend/cloud/azure_integration.py` | Early drafts. Nothing imports or runs them. |
-| `docker-compose.yml`, `docker/` | The API, three agent containers, PostgreSQL 13, ZooKeeper, Kafka and the chat page. |
+| `docker-compose.yml`, `docker/` | Four containers built from `docker/Dockerfile.backend` (`iot-simulation`, `data-fetcher`, `data-logger`, `occupancy-detector`), PostgreSQL 13, ZooKeeper, Kafka and the chat page. |
 | `scripts/deploy.sh` | Wraps `docker-compose` build, up and down. |
 | `tests/` | Empty placeholder files. There are no tests yet. |
 
@@ -41,7 +41,8 @@ Interactive docs are at `/docs` while the API runs.
 
 ### Sensor API only, without Docker
 
-Needs Python 3.10 or newer. Run from the repo root:
+FastAPI 0.109 supports Python 3.8 and newer; these steps were checked with
+Python 3.13. Run from the repo root:
 
 ```bash
 python -m venv .venv
@@ -87,10 +88,13 @@ The steps, for when it is:
   `gradio==6.20.0` needs FastAPI 0.115.2 or newer, so `pip install` stops with a
   resolution error. The conflict began when Gradio moved to 5.5.0 (PR #1); the
   original pins, with Gradio 4.19.2, resolved.
-- **Every backend container runs the API.** `docker/Dockerfile.backend` has one
-  default command and `docker-compose.yml` does not override it per service, so
-  `data-fetcher`, `data-logger` and `occupancy-detector` all start
-  `backend.agents.data_fetcher` instead of their own agent.
+- **The two Kafka agents never start.** `docker/Dockerfile.backend` ends with
+  `CMD ["python", "-m", "backend.agents.data_fetcher"]`, and no service in
+  `docker-compose.yml` sets `command:`. All four backend containers
+  (`iot-simulation`, `data-fetcher`, `data-logger`, `occupancy-detector`)
+  therefore run the sensor API. `data_fetcher.py` is the API itself, so there is
+  no separate data fetcher agent; `data_logger.py` and `occupancy_detector.py`
+  only run if started by hand.
 - **Nothing feeds Kafka.** No code publishes readings to the `life-being` or
   `iaq` topics, so the logger and the occupancy detector have no input even
   when started by hand, and PostgreSQL stays empty.
@@ -110,6 +114,8 @@ The steps, for when it is:
   (`kafka-python`, `psycopg2`), and `backend/devices/simulation.py` uses an
   undefined `router` and reads a `data/room_iot_data.csv` that is not in the
   repo.
+- The ZooKeeper and Kafka images use unpinned `latest` tags, so what they pull
+  changes over time.
 - PostgreSQL uses the placeholder login `user` / `password`, set in
   `docker-compose.yml` and `data_logger.py`. Local demo use only.
 
