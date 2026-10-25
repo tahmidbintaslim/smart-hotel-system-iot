@@ -1,231 +1,124 @@
-# Smart Hotel Management System
+# Smart Hotel System (IoT prototype)
 
-## Overview
+A prototype backend for smart hotel rooms. A FastAPI service simulates room
+sensors, Docker Compose runs it next to Kafka, ZooKeeper and PostgreSQL, and a
+Gradio chat page sends a room's data and a guest's question to an Azure OpenAI
+assistant.
 
-The **Smart Hotel Management System** is a simplified IoT solution for managing hotel rooms. It includes:
+**Status:** prototype from November 2024; since then only dependency bumps. The
+sensor API runs. The Kafka agents are written but not wired into the stack, and
+the Docker images do not build with the current `requirements.txt`. See
+[Known gaps](#known-gaps).
 
-- Simulated IoT devices for hotel rooms.
-- Real-time data processing and energy management.
-- A chatbot interface to enhance the guest experience.
+**License:** GNU General Public License v3.0 ([LICENSE](LICENSE)).
 
-This system is containerized using Docker, which means you don’t need any coding knowledge to deploy it. Just follow the steps below to get started!
+## What is in the repo
 
----
+| Path | What it does |
+| --- | --- |
+| `backend/agents/data_fetcher.py` | FastAPI app on port 8000. Returns random readings for two simulated sensors per room: presence ("life being") and indoor air quality (noise, CO2, PM2.5, humidity, temperature, illuminance). Rooms 100 to 109 are preloaded at startup and readings are kept in memory. |
+| `backend/agents/data_logger.py` | Kafka consumer for the `life-being` and `iaq` topics. Writes each reading to PostgreSQL with async SQLAlchemy. |
+| `backend/agents/occupancy_detector.py` | Kafka consumer for `life-being`. A room counts as occupied when presence is true, sensitivity is above 0.5 and the sensor is online. When a room becomes empty it publishes an AC set point of 26.5 °C to the `room-control` topic and posts the same command to the API. |
+| `frontend/chatbot.py` | Gradio chat page on port 7860. The first word of a message is the room ID. It fetches that room's data from the API and sends it with the question to an Azure OpenAI assistant (Assistants API). |
+| `backend/devices/simulation.py`, `backend/api/routes.py`, `backend/kafka/producer.py`, `backend/cloud/azure_integration.py` | Early drafts. Nothing imports or runs them. |
+| `docker-compose.yml`, `docker/` | Four containers built from `docker/Dockerfile.backend` (`iot-simulation`, `data-fetcher`, `data-logger`, `occupancy-detector`), PostgreSQL 13, ZooKeeper, Kafka and the chat page. |
+| `scripts/deploy.sh` | Wraps `docker-compose` build, up and down. |
+| `tests/` | Empty placeholder files. There are no tests yet. |
 
-## Supported Platforms
+## Sensor API
 
-This guide provides instructions for the following platforms:
+| Request | Response |
+| --- | --- |
+| `GET /life-being/{room_id}` | A new random presence reading for the room, also stored in memory. |
+| `GET /iaq/{room_id}` | A new random air quality reading for the room, also stored. |
+| `GET /rooms/{room_id}/data` | Meant to return the latest stored reading of each sensor (see Known gaps). 404 for a room with no readings. |
+| `POST /rooms/{room_id}/control` | Echoes the JSON command back with `"status": "processed"`. No device is controlled. |
+| `GET /life-being`, `GET /iaq` | `"Not implemented yet"`. |
 
-- **Windows**
-- **Linux**
-- **macOS**
+Interactive docs are at `/docs` while the API runs.
 
----
+## Running it
 
-## Prerequisites
+### Sensor API only, without Docker
 
-Before deploying the system, make sure you have the following installed:
-
-1. **Docker**:
-
-   - Download and install from [https://www.docker.com/](https://www.docker.com/).
-   - Follow the platform-specific installation guide:
-     - [Windows Installation Guide](https://docs.docker.com/desktop/install/windows-install/)
-     - [Linux Installation Guide](https://docs.docker.com/desktop/install/linux-install/)
-     - [macOS Installation Guide](https://docs.docker.com/desktop/install/mac-install/)
-
-2. **Git**:
-
-   - Download and install from [https://git-scm.com/](https://git-scm.com/).
-
-3. **Docker Compose**:
-   - Comes pre-installed with Docker Desktop for Windows and macOS.
-   - For Linux, install it manually by following [this guide](https://docs.docker.com/compose/install/).
-
----
-
-## How to Deploy the System
-
-### **Step 1: Clone the Repository**
-
-First, download the project code to your computer using Git.
-
-1. Open your terminal:
-
-   - On **Windows**: Use Command Prompt, PowerShell, or Git Bash.
-   - On **Linux/macOS**: Use your default terminal.
-
-2. Run the following command to clone the project repository:
-
-   ```bash
-   git clone https://github.com/your-repository/smart-hotel-management.git
-   ```
-
-3. Navigate into the project folder:
-   ```bash
-   cd smart-hotel-management
-   ```
-
----
-
-### **Step 2: Make the Deployment Script Executable (Linux/macOS Only)**
-
-On Linux or macOS, you need to make the deployment script executable. Run the following command:
+FastAPI 0.109 supports Python 3.8 and newer; these steps were checked with
+Python 3.13. Run from the repo root:
 
 ```bash
-chmod +x ./scripts/deploy.sh
+python -m venv .venv
+source .venv/bin/activate
+pip install fastapi==0.109.0 uvicorn==0.27.0
+python -m backend.agents.data_fetcher
 ```
 
-On Windows, you can skip this step.
+Then open http://localhost:8000/docs.
 
----
+### Full stack with Docker Compose
 
-### **Step 3: Deploy the System**
+This fails at the image build until the dependency conflict below is fixed.
+The steps, for when it is:
 
-To deploy the system, run the deployment script:
-
-1. On **Linux/macOS**:
+1. Install Docker. `deploy.sh` calls the standalone `docker-compose` command.
+2. Clone the repo and export your own Azure OpenAI settings for the chat page:
 
    ```bash
+   git clone https://github.com/tahmidbintaslim/smart-hotel-system-iot.git
+   cd smart-hotel-system-iot
+   export AZURE_OPENAI_KEY=<your key>
+   export AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com
+   export AZURE_ASSISTANT_ID=<your assistant id>
+   ```
+
+3. Start, stop or restart the stack (on Windows, prefix with `bash`):
+
+   ```bash
+   chmod +x ./scripts/deploy.sh   # Linux and macOS, once
    ./scripts/deploy.sh start
+   ./scripts/deploy.sh stop
+   ./scripts/deploy.sh restart
    ```
 
-2. On **Windows** (using Command Prompt or PowerShell):
-   ```bash
-   bash ./scripts/deploy.sh start
-   ```
+4. Open the chat page at http://localhost:7860 and type a room ID, then a
+   question, for example `101 what is the temperature?`. The API docs are at
+   http://localhost:8000/docs.
 
----
+## Known gaps
 
-### **Step 4: Access the Services**
+- **The project images do not build.** `requirements.txt` pins `fastapi==0.109.0`, but
+  `gradio==6.20.0` needs FastAPI 0.115.2 or newer, so `pip install` stops with a
+  resolution error. The conflict began when Gradio moved to 5.5.0 (PR #1); the
+  original pins, with Gradio 4.19.2, resolved.
+- **The two Kafka agents never start.** `docker/Dockerfile.backend` ends with
+  `CMD ["python", "-m", "backend.agents.data_fetcher"]`, and no service in
+  `docker-compose.yml` sets `command:`. All four backend containers
+  (`iot-simulation`, `data-fetcher`, `data-logger`, `occupancy-detector`)
+  therefore run the sensor API. `data_fetcher.py` is the API itself, so there is
+  no separate data fetcher agent; `data_logger.py` and `occupancy_detector.py`
+  only run if started by hand.
+- **Nothing feeds Kafka.** No code publishes readings to the `life-being` or
+  `iaq` topics, so the logger and the occupancy detector have no input even
+  when started by hand, and PostgreSQL stays empty.
+- **`GET /rooms/{room_id}/data` returns empty objects**
+  (`{"life_being": {}, "iaq": {}}`) because its response model is the bare
+  Pydantic `BaseModel`. The chat page therefore sends the assistant no sensor
+  values.
+- **The chat handler mangles input and output.** It keeps only the text after
+  the second word (`101 what is the temperature?` reaches the assistant as
+  `is the temperature?`), returns the assistant message's content list instead
+  of its text, and its status poll calls `asyncio.sleep` without `await`, so it
+  does not pause between checks.
+- **`deploy.sh start` can stop with an error after the containers are up.** Its
+  last step looks for a Docker network named `glowing-fortnight_default`; the
+  compose file defines `glowing-fortnight-network`.
+- The draft modules import packages that are not in `requirements.txt`
+  (`kafka-python`, `psycopg2`), and `backend/devices/simulation.py` uses an
+  undefined `router` and reads a `data/room_iot_data.csv` that is not in the
+  repo.
+- The ZooKeeper and Kafka images use unpinned `latest` tags, so what they pull
+  changes over time.
+- PostgreSQL uses the placeholder login `user` / `password`, set in
+  `docker-compose.yml` and `data_logger.py`. Local demo use only.
 
-Once the system is deployed, you can access the following services in your browser:
+## License
 
-1. **Frontend Chatbot**:
-
-   - URL: [http://localhost:7860](http://localhost:7860)
-   - Interact with your smart room by typing commands like:
-     ```
-     101 What is the current temperature?
-     ```
-
-2. **Backend API (Optional)**:
-   - URL: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - This is the backend API documentation for developers.
-
----
-
-## How to Manage the System
-
-### **Start the System**
-
-If the system is not running, start it with:
-
-```bash
-./scripts/deploy.sh start
-```
-
-### **Stop the System**
-
-To stop the system, run:
-
-```bash
-./scripts/deploy.sh stop
-```
-
-### **Restart the System**
-
-To restart the system, run:
-
-```bash
-./scripts/deploy.sh restart
-```
-
----
-
-## How It Works
-
-The system consists of the following components:
-
-1. **IoT Device Simulation**:
-   - Simulates sensors that provide data like temperature, humidity, and room occupancy.
-2. **Backend Processing**:
-   - Analyzes sensor data, detects room occupancy, and manages energy usage.
-3. **Frontend Chatbot**:
-   - A simple chatbot interface for hotel guests to interact with their room devices (e.g., turning on lights or adjusting the AC).
-4. **Database**:
-   - Stores sensor data for real-time and historical analysis.
-
----
-
-## Troubleshooting
-
-### **Common Errors**
-
-#### **1. Error: Docker is not installed**
-
-- Solution: Install Docker by following the official guide: [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
-
-#### **2. Error: Room data not found**
-
-- Solution: Ensure mock data is generated for the room by accessing:
-  - [http://localhost:8000/life-being/101](http://localhost:8000/life-being/101)
-  - [http://localhost:8000/iaq/101](http://localhost:8000/iaq/101)
-
-#### **3. Error: Unauthorized. Access token is missing**
-
-- Solution: Ensure your Azure API Key and Endpoint are correctly set in the deployment script. If needed, regenerate the API key in your Azure portal.
-
-#### **4. Error: Deployment script permission denied**
-
-- Solution: On Linux/macOS, make the script executable:
-  ```bash
-  chmod +x ./scripts/deploy.sh
-  ```
-
----
-
-## FAQs
-
-### **Q: Do I need coding knowledge to use this system?**
-
-No, you only need to follow the instructions in this guide. The deployment script handles everything for you.
-
-### **Q: How do I verify if the system is running?**
-
-Open your browser and visit:
-
-- Frontend: [http://localhost:7860](http://localhost:7860)
-- Backend: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### **Q: How do I reset the system?**
-
-Stop the system and then start it again:
-
-```bash
-./scripts/deploy.sh stop
-./scripts/deploy.sh start
-```
-
----
-
-## Project Structure
-
-Here’s a quick overview of the project structure:
-
-```
-smart-hotel-management/
-├── backend/                # Backend code
-│   ├── agents/             # Data fetcher, logger, and occupancy detector
-│   ├── devices/            # IoT device simulation
-│   └── api/                # API routes
-├── frontend/               # Chatbot interface
-│   └── chatbot.py
-├── scripts/                # Deployment scripts
-│   └── deploy.sh
-├── docker-compose.yml      # Docker Compose configuration
-├── requirements.txt        # Python dependencies
-└── README.md               # Project documentation
-```
-
----
+GNU General Public License v3.0. See [LICENSE](LICENSE).
