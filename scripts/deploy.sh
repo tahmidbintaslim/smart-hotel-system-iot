@@ -7,8 +7,16 @@ set -e
 
 # Constants
 DOCKER_COMPOSE_FILE="docker-compose.yml"
+NETWORK_NAME="smart-hotel-network" # fixed by `name:` in docker-compose.yml
 
-# Azure OpenAI settings for the chat page come from the shell; export them before running
+# Azure OpenAI settings for the chat page come from the shell or from a .env
+# file in the repo root (copy .env.example)
+if [ -f .env ]; then
+    set -a
+    # shellcheck source=/dev/null
+    . ./.env
+    set +a
+fi
 export AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY:-}"
 export AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
 export AZURE_ASSISTANT_ID="${AZURE_ASSISTANT_ID:-}"
@@ -20,18 +28,25 @@ check_docker() {
         echo "Error: Docker is not installed. Please install Docker first."
         exit 1
     fi
+}
 
-    if ! command -v docker-compose &> /dev/null; then
+# Prefer the Compose plugin (`docker compose`), fall back to the standalone tool
+compose() {
+    if docker compose version &> /dev/null; then
+        docker compose "$@"
+    elif command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+    else
         echo "Error: Docker Compose is not installed. Please install Docker Compose first."
         exit 1
     fi
 }
 
-# Check for required environment variables
+# The chat page needs Azure OpenAI; the sensor API and the agents run without it
 check_env_vars() {
-    if [ -z "$AZURE_OPENAI_KEY" ] || [ -z "$AZURE_OPENAI_ENDPOINT" ] || [ -z "$AZURE_ASSISTANT_ID" ] || [ -z "$BACKEND_API_URL" ]; then
-        echo "Error: Environment variables are not set. Please check AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_ASSISTANT_ID, and BACKEND_API_URL."
-        exit 1
+    if [ -z "$AZURE_OPENAI_KEY" ] || [ -z "$AZURE_OPENAI_ENDPOINT" ] || [ -z "$AZURE_ASSISTANT_ID" ]; then
+        echo "Warning: AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT or AZURE_ASSISTANT_ID is not set."
+        echo "         The stack starts, but the chat page cannot answer."
     fi
 }
 
@@ -42,30 +57,29 @@ build_images() {
         echo "Error: $DOCKER_COMPOSE_FILE not found. Ensure the file exists in the current directory."
         exit 1
     fi
-    docker-compose -f "$DOCKER_COMPOSE_FILE" build
+    compose -f "$DOCKER_COMPOSE_FILE" build
 }
 
 # Start Docker services
 start_services() {
     echo "Starting services..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
+    compose -f "$DOCKER_COMPOSE_FILE" up -d
 }
 
 # Stop and remove Docker services
 stop_services() {
     echo "Stopping and removing services..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" down
+    compose -f "$DOCKER_COMPOSE_FILE" down
 }
 
 # Check Docker network status
 check_network() {
     echo "Checking Docker network..."
-    docker network inspect glowing-fortnight_default &> /dev/null
-    if [ $? -ne 0 ]; then
-        echo "Error: Docker network 'glowing-fortnight_default' not found. Ensure the services are deployed correctly."
+    if ! docker network inspect "$NETWORK_NAME" &> /dev/null; then
+        echo "Error: Docker network '$NETWORK_NAME' not found. Ensure the services are deployed correctly."
         exit 1
     fi
-    echo "Docker network 'glowing-fortnight_default' is configured."
+    echo "Docker network '$NETWORK_NAME' is configured."
 }
 
 # Main deployment function
