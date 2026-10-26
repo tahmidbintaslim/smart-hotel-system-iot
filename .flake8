@@ -1,0 +1,12 @@
+[flake8]
+# Matches black's line length
+max-line-length = 88
+extend-ignore = E203
+# Early drafts that nothing imports or runs (see README)
+extend-exclude =
+    .venv,
+    venv,
+    backend/api,
+    backend/cloud,
+    backend/devices,
+    backend/kafka

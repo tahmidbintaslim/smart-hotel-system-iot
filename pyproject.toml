@@ -1,0 +1,11 @@
+# Tool settings only; dependencies stay in requirements.txt
+
+[tool.black]
+# Early drafts that nothing imports or runs (see README)
+extend-exclude = '''
+^/backend/(api|cloud|devices|kafka)/
+'''
+
+[tool.pytest.ini_options]
+pythonpath = [".", "tests"]
+testpaths = ["tests"]
