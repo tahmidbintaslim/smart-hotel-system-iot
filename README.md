@@ -38,7 +38,8 @@ readings to Kafka yet, so the agents act only on readings you publish by hand
 - **Docker Compose stack** with a `deploy.sh` wrapper, health-checked
   PostgreSQL, and host ports bound to `127.0.0.1`.
 - **Tests and CI**: 33 pytest tests that need no Kafka, database or Azure, plus
-  black, flake8, shellcheck and an image build on every push and pull request.
+  black, flake8, shellcheck and an image build on every push to `main` and
+  every pull request into `main`.
 
 ## Architecture
 
