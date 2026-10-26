@@ -1,9 +1,9 @@
 import csv
 import random
-from typing import Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = FastAPI(title="IoT Device Simulation")
 
@@ -28,6 +28,13 @@ class IAQSensor(BaseModel):
     online_status: bool
     device_status: str
     timestamp: datetime
+
+
+class RoomData(BaseModel):
+    """Latest stored reading of each sensor in a room"""
+
+    life_being: LifeBeingSensor
+    iaq: IAQSensor
 
 
 # Simulated data storage
@@ -131,7 +138,7 @@ async def get_iaq_data(room_id: str):
 
 
 # Combined sensor data endpoints for a room
-@app.get("/rooms/{room_id}/data", response_model=Dict[str, BaseModel])
+@app.get("/rooms/{room_id}/data", response_model=RoomData)
 async def get_room_data(room_id: str):
     """Endpoint to get combined sensor data for a room"""
     # Retrieve the latest stored data for life being sensor
@@ -147,7 +154,7 @@ async def get_room_data(room_id: str):
 
 
 @app.post("/rooms/{room_id}/control")
-async def control_room_devices(room_id: str, command: Dict[str, str]):
+async def control_room_devices(room_id: str, command: Dict[str, Any]):
     """Endpoint to send control commands to room devices"""
     # In a real implementation, this would interact with actual IoT devices
     return {"room_id": room_id, "command": command, "status": "processed"}
