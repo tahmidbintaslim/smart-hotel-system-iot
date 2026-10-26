@@ -1,9 +1,31 @@
 import os
 import logging
 import asyncio
+import time
 import aiohttp
 import gradio as gr
 from openai import AzureOpenAI
+
+# Rooms 100 to 109 are preloaded by the sensor API
+DEFAULT_ROOM_ID = "101"
+
+
+def parse_message(message: str) -> tuple[str, str]:
+    """Split "<room id> <question>" into the room ID and the question.
+
+    A one-word message is a question about the default room.
+    """
+    parts = message.split(maxsplit=1)
+    if len(parts) == 2:
+        return parts[0], parts[1].strip()
+    return DEFAULT_ROOM_ID, message.strip()
+
+
+def message_text(message) -> str:
+    """Join the text blocks of an Assistants API message"""
+    return "\n".join(
+        block.text.value for block in message.content if block.type == "text"
+    )
 
 
 class HotelAssistant:
@@ -82,7 +104,7 @@ class HotelAssistant:
 
             # Wait for completion
             while run.status in ["queued", "in_progress", "cancelling"]:
-                asyncio.sleep(1)
+                time.sleep(1)
                 run = self.client.beta.threads.runs.retrieve(
                     thread_id=thread.id, run_id=run.id
                 )
@@ -91,7 +113,7 @@ class HotelAssistant:
                 messages = self.client.beta.threads.messages.list(thread_id=thread.id)
                 for message in messages.data:
                     if message.role == "assistant":
-                        return message.content
+                        return message_text(message)
             elif run.status == "requires_action":
                 return "The assistant requires further input."
             else:
@@ -104,10 +126,8 @@ class HotelAssistant:
     def chat_interface(self, message, history):
         """Main chat interface handler"""
         try:
-            # Assume room ID is first part of message
-            parts = message.split(maxsplit=2)
-            room_id = parts[0] if len(parts) > 1 else "room101"
-            user_request = parts[-1]
+            # The room ID is the first word of the message
+            room_id, user_request = parse_message(message)
 
             # Fetch room data
             room_data = asyncio.run(self.get_room_data(room_id))
