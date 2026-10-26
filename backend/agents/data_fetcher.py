@@ -1,11 +1,12 @@
 import csv
 import random
-from typing import Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = FastAPI(title="IoT Device Simulation")
+
 
 # Data models for sensors
 class LifeBeingSensor(BaseModel):
@@ -14,6 +15,7 @@ class LifeBeingSensor(BaseModel):
     sensitivity: float
     online_status: bool
     timestamp: datetime
+
 
 class IAQSensor(BaseModel):
     room_id: str
@@ -27,14 +29,24 @@ class IAQSensor(BaseModel):
     device_status: str
     timestamp: datetime
 
+
+class RoomData(BaseModel):
+    """Latest stored reading of each sensor in a room"""
+
+    life_being: LifeBeingSensor
+    iaq: IAQSensor
+
+
 # Simulated data storage
 life_being_data: Dict[str, List[LifeBeingSensor]] = {}
 iaq_data: Dict[str, List[IAQSensor]] = {}
 
+
 def load_csv_data(filepath: str) -> List[Dict]:
     """Load data from CSV file"""
-    with open(filepath, 'r') as csvfile:
+    with open(filepath, "r") as csvfile:
         return list(csv.DictReader(csvfile))
+
 
 def generate_mock_life_being_data(room_id: str) -> LifeBeingSensor:
     """Generate mock Life Being sensor data"""
@@ -43,8 +55,9 @@ def generate_mock_life_being_data(room_id: str) -> LifeBeingSensor:
         presence_state=random.choice([True, False]),
         sensitivity=round(random.uniform(0.1, 1.0), 2),
         online_status=random.choice([True, False]),
-        timestamp=datetime.now()
+        timestamp=datetime.now(),
     )
+
 
 def generate_mock_iaq_data(room_id: str) -> IAQSensor:
     """Generate mock IAQ sensor data"""
@@ -57,19 +70,22 @@ def generate_mock_iaq_data(room_id: str) -> IAQSensor:
         temperature=round(random.uniform(20, 30), 1),
         illuminance=round(random.uniform(0, 1000), 1),
         online_status=random.choice([True, False]),
-        device_status=random.choice(['normal', 'warning', 'critical']),
-        timestamp=datetime.now()
+        device_status=random.choice(["normal", "warning", "critical"]),
+        timestamp=datetime.now(),
     )
+
 
 # Root endpoint
 @app.get("/")
 async def root():
     return {"message": "Backend IoT Device Simulation API"}
 
+
 # Sensor data endpoints
 @app.get("/life-being")
 async def get_all_life_being_data():
     return {"message": "Not implemented yet"}
+
 
 # IAQ sensor data endpoints
 @app.get("/iaq")
@@ -83,7 +99,6 @@ def preload_mock_data():
         room_id_str = str(room_id)
         life_being_data[room_id_str] = [generate_mock_life_being_data(room_id_str)]
         iaq_data[room_id_str] = [generate_mock_iaq_data(room_id_str)]
-
 
 
 # Room Life Being sensor data endpoints
@@ -123,38 +138,29 @@ async def get_iaq_data(room_id: str):
 
 
 # Combined sensor data endpoints for a room
-@app.get("/rooms/{room_id}/data", response_model=Dict[str, BaseModel])
+@app.get("/rooms/{room_id}/data", response_model=RoomData)
 async def get_room_data(room_id: str):
     """Endpoint to get combined sensor data for a room"""
     # Retrieve the latest stored data for life being sensor
-    life_being = (
-        life_being_data.get(room_id, [{}])[-1]
-    )
+    life_being = life_being_data.get(room_id, [{}])[-1]
 
     # Retrieve the latest stored data for IAQ sensor
-    iaq = (
-        iaq_data.get(room_id, [{}])[-1]
-    )
+    iaq = iaq_data.get(room_id, [{}])[-1]
 
     if not life_being or not iaq:
         raise HTTPException(status_code=404, detail="Room data not found")
 
-    return {
-        "life_being": life_being,
-        "iaq": iaq
-    }
+    return {"life_being": life_being, "iaq": iaq}
 
 
 @app.post("/rooms/{room_id}/control")
-async def control_room_devices(room_id: str, command: Dict[str, str]):
+async def control_room_devices(room_id: str, command: Dict[str, Any]):
     """Endpoint to send control commands to room devices"""
     # In a real implementation, this would interact with actual IoT devices
-    return {
-        "room_id": room_id,
-        "command": command,
-        "status": "processed"
-    }
+    return {"room_id": room_id, "command": command, "status": "processed"}
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
