@@ -5,12 +5,13 @@ import aiohttp
 import gradio as gr
 from openai import AzureOpenAI
 
+
 class HotelAssistant:
     def __init__(self):
         # Configure logging
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
         self.logger = logging.getLogger("HotelAssistant")
 
@@ -35,7 +36,9 @@ class HotelAssistant:
         """Fetch room data from backend API"""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.backend_url}/rooms/{room_id}/data") as response:
+                async with session.get(
+                    f"{self.backend_url}/rooms/{room_id}/data"
+                ) as response:
                     data = await response.json()
                     self.logger.info(f"Fetched room data: {data}")
                     return data
@@ -68,20 +71,21 @@ class HotelAssistant:
             self.client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
-                content=f"Room data: {room_data}\nUser request: {user_input}"
+                content=f"Room data: {room_data}\nUser request: {user_input}",
             )
 
             # Run the conversation
             run = self.client.beta.threads.runs.create(
-                thread_id=thread.id,
-                assistant_id=self.assistant_id
+                thread_id=thread.id, assistant_id=self.assistant_id
             )
             self.logger.info(f"Started run: {run.id}")
 
             # Wait for completion
             while run.status in ["queued", "in_progress", "cancelling"]:
                 asyncio.sleep(1)
-                run = self.client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+                run = self.client.beta.threads.runs.retrieve(
+                    thread_id=thread.id, run_id=run.id
+                )
 
             if run.status == "completed":
                 messages = self.client.beta.threads.messages.list(thread_id=thread.id)
@@ -127,9 +131,11 @@ class HotelAssistant:
         )
         iface.launch(server_name="0.0.0.0", server_port=7860)
 
+
 def main():
     assistant = HotelAssistant()
     assistant.launch_interface()
+
 
 if __name__ == "__main__":
     main()
