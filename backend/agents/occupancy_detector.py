@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Dict, Any
 from confluent_kafka import Consumer, Producer
 import aiohttp
@@ -155,10 +156,10 @@ class OccupancyDetectorAgent:
 
 
 def main():
-    # Configuration can be loaded from environment variables
+    # docker-compose.yml sets both; the defaults match its service names
     agent = OccupancyDetectorAgent(
-        kafka_broker="kafka:9092",  # Docker Kafka service
-        iot_api_url="http://iot-simulation:8000",  # IoT simulation service
+        kafka_broker=os.getenv("KAFKA_BROKER", "kafka:9092"),
+        iot_api_url=os.getenv("IOT_API_URL", "http://iot-simulation:8000"),
     )
 
     asyncio.run(agent.run())

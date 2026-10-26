@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Dict, Any
 from confluent_kafka import Consumer, KafkaError
 import sqlalchemy as sa
@@ -147,10 +148,13 @@ class DataLoggerAgent:
 
 
 def main():
-    # Configuration can be loaded from environment variables
+    # docker-compose.yml sets both; the defaults match its service names
     agent = DataLoggerAgent(
-        kafka_broker="kafka:9092",  # Docker Kafka service
-        database_url="postgresql+asyncpg://user:password@postgres:5432/iotdb",
+        kafka_broker=os.getenv("KAFKA_BROKER", "kafka:9092"),
+        database_url=os.getenv(
+            "DATABASE_URL",
+            "postgresql+asyncpg://user:password@postgres:5432/iotdb",
+        ),
     )
 
     asyncio.run(agent.run())

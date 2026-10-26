@@ -1,65 +1,60 @@
 networks:
-  glowing-fortnight-network:
+  smart-hotel-network:
+    # Fixed name, so scripts/deploy.sh can find it whatever the project
+    # directory is called
+    name: smart-hotel-network
     driver: bridge
 
 services:
-  # IoT Device Simulation Service
+  # Sensor API (backend/agents/data_fetcher.py): random readings per room
   iot-simulation:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.backend
     ports:
-      - "8000:8000" # Expose port for external access
+      - "127.0.0.1:8000:8000"
     environment:
       - KAFKA_BROKER=kafka:9092
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
     depends_on:
       - kafka
 
-  # Data Fetcher Agent
-  data-fetcher:
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile.backend
-    environment:
-      - API_URL=http://iot-simulation:8000
-      - KAFKA_BROKER=kafka:9092
-    networks:
-      - glowing-fortnight-network
-    depends_on:
-      - iot-simulation
-      - kafka
-
-  # Data Logger Agent
+  # Data Logger Agent: Kafka life-being/iaq topics -> PostgreSQL
   data-logger:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.backend
+    command: ["python", "-m", "backend.agents.data_logger"]
+    restart: on-failure
     environment:
       - KAFKA_BROKER=kafka:9092
       - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/iotdb
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
     depends_on:
-      - postgres
-      - kafka
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
 
-  # Occupancy Detector Agent
+  # Occupancy Detector Agent: Kafka life-being topic -> AC set point
   occupancy-detector:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.backend
+    command: ["python", "-m", "backend.agents.occupancy_detector"]
+    restart: on-failure
     environment:
       - KAFKA_BROKER=kafka:9092
       - IOT_API_URL=http://iot-simulation:8000
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
     depends_on:
       - iot-simulation
       - kafka
 
-  # PostgreSQL Database
+  # PostgreSQL Database (local demo login, not for real use)
   postgres:
     image: postgres:13
     environment:
@@ -69,47 +64,53 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432" # Expose port for external access
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d iotdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
 
-  # Apache Kafka
+  # Apache Kafka. Confluent Platform 8 removed ZooKeeper mode, so both
+  # images stay on the 7.9 line that this configuration needs.
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.9.10
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
     ports:
-      - "2181:2181"
+      - "127.0.0.1:2181:2181"
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.9.10
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
 
-  # Frontend Chatbot Service
+  # Frontend Chatbot Service (Gradio, no login: keep it on localhost)
   frontend:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.frontend
     ports:
-      - "7860:7860" # Expose port for external access
+      - "127.0.0.1:7860:7860"
     environment:
       - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - AZURE_ASSISTANT_ID=${AZURE_ASSISTANT_ID}
       - BACKEND_API_URL=http://iot-simulation:8000
     networks:
-      - glowing-fortnight-network
+      - smart-hotel-network
     depends_on:
       - iot-simulation
 
