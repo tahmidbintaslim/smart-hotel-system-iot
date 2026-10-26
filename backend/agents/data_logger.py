@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Dict, Any
 from confluent_kafka import Consumer, KafkaError
 import sqlalchemy as sa
@@ -10,6 +11,16 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
+
+
+def parse_timestamp(value: Any) -> Any:
+    """Kafka messages are JSON, so timestamps arrive as ISO 8601 strings.
+
+    asyncpg only accepts datetime objects for a TIMESTAMP column.
+    """
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return value
 
 
 class LifeBeingSensorLog(Base):
@@ -87,7 +98,7 @@ class DataLoggerAgent:
             presence_state=data.get("presence_state"),
             sensitivity=data.get("sensitivity"),
             online_status=data.get("online_status"),
-            timestamp=data.get("timestamp"),
+            timestamp=parse_timestamp(data.get("timestamp")),
         )
         session.add(log_entry)
         await session.commit()
@@ -104,7 +115,7 @@ class DataLoggerAgent:
             illuminance=data.get("illuminance"),
             online_status=data.get("online_status"),
             device_status=data.get("device_status"),
-            timestamp=data.get("timestamp"),
+            timestamp=parse_timestamp(data.get("timestamp")),
         )
         session.add(log_entry)
         await session.commit()
