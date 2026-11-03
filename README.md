@@ -1,7 +1,16 @@
+<div align="center">
+
 # Smart Hotel System (IoT prototype)
 
-[![CI](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/ci.yml/badge.svg)](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/ci.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+Simulated room sensors, Kafka agents and a guest chat page for smart hotel rooms, running locally with Docker Compose.
+
+[![CI](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tahmidbintaslim/smart-hotel-system-iot/actions/workflows/codeql.yml)
+[![License: GPL-3.0](https://img.shields.io/github/license/tahmidbintaslim/smart-hotel-system-iot)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/tahmidbintaslim/smart-hotel-system-iot)](https://github.com/tahmidbintaslim/smart-hotel-system-iot/commits/main)
+[![GitHub stars](https://img.shields.io/github/stars/tahmidbintaslim/smart-hotel-system-iot?style=flat)](https://github.com/tahmidbintaslim/smart-hotel-system-iot/stargazers)
+
+</div>
 
 A prototype backend for smart hotel rooms: a FastAPI service that simulates
 room sensors, two Kafka consumer agents (one logs readings to PostgreSQL, one
@@ -17,6 +26,35 @@ readings to Kafka yet, so the agents act only on readings you publish by hand
 ![Swagger UI of the sensor API listing its seven endpoints](docs/images/api-docs.png)
 
 ![GET /rooms/101/data in Swagger UI returning the latest presence and air quality readings for room 101](docs/images/room-data-response.png)
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Deployment](#deployment)
+- [Project structure](#project-structure)
+- [Status and roadmap](#status-and-roadmap)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
+
+## Quick start
+
+Run the sensor API alone (Python 3.11, no Docker):
+
+```bash
+git clone https://github.com/tahmidbintaslim/smart-hotel-system-iot.git
+cd smart-hotel-system-iot
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m backend.agents.data_fetcher   # docs at http://localhost:8000/docs
+```
+
+Or the full stack: `cp .env.example .env`, then `./scripts/deploy.sh start`.
+See [Getting started](#getting-started) for details.
 
 ## Features
 
@@ -205,7 +243,7 @@ docker/                  Dockerfiles for the backend and the chat page
 docker-compose.yml       the full stack
 scripts/deploy.sh        start / stop / restart wrapper
 tests/                   pytest suite with fake Kafka and OpenAI clients
-.github/                 CI workflow and Dependabot
+.github/                 CI and CodeQL workflows, Dependabot, issue and PR templates
 ```
 
 ## Status and roadmap
@@ -237,6 +275,12 @@ Known gaps:
 
 Issues and pull requests are welcome. Before you push, run `black .`,
 `flake8 .` and `pytest`; CI runs the same checks and builds the Docker images.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+Report vulnerabilities by email, not in a public issue. See
+[SECURITY.md](SECURITY.md).
 
 ## License
 
