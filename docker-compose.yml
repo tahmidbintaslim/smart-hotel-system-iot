@@ -77,7 +77,7 @@ services:
   # Apache Kafka. Confluent Platform 8 removed ZooKeeper mode, so both
   # images stay on the 7.9 line that this configuration needs.
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.9.10
+    image: confluentinc/cp-zookeeper:7.9.11
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
     ports:
@@ -86,7 +86,7 @@ services:
       - smart-hotel-network
 
   kafka:
-    image: confluentinc/cp-kafka:7.9.10
+    image: confluentinc/cp-kafka:7.9.11
     depends_on:
       - zookeeper
     ports:
